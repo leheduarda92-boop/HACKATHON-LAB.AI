@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Da Periferia ao Mercado — Uma Plataforma de Empregabilidade com IA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,700;1,700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #07080f;
+      --surface: #0e1018;
+      --card: #13151f;
+      --border: rgba(255,255,255,0.07);
+      --primary: #6c63ff;
+      --primary-glow: rgba(108,99,255,0.35);
+      --accent: #ff6584;
+      --accent2: #43d4a0;
+      --accent3: #f9c74f;
+      --text: #f0f0f8;
+      --text-muted: #8888aa;
+      --text-dim: #555577;
+      --font: 'Inter', sans-serif;
+      --serif: 'Playfair Display', serif;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+    }
+
+    /* ── PROGRESS BAR ── */
+    #progress-bar {
+      position: fixed; top: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+      transition: width .5s cubic-bezier(.4,0,.2,1);
+      z-index: 100;
+    }
+
+    /* ── SLIDE CONTAINER ── */
+    #deck {
+      width: 100%; height: 100%;
+      position: relative;
+    }
+
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 4rem 6rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity .6s cubic-bezier(.4,0,.2,1), transform .6s cubic-bezier(.4,0,.2,1);
+      transform: translateY(24px);
+      overflow: hidden;
+    }
+    .slide.active {
+      opacity: 1; pointer-events: all; transform: translateY(0);
+    }
+    .slide.exit {
+      opacity: 0; transform: translateY(-24px);
+    }
+
+    /* ── NAV ── */
+    #nav {
+      position: fixed; bottom: 2.5rem; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 1rem;
+      background: rgba(14,16,24,0.85);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      border-radius: 100px;
+      padding: .6rem 1.4rem;
+      z-index: 50;
+    }
+    #nav button {
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 1.1rem;
+      padding: .4rem .7rem; border-radius: 50%;
+      transition: color .2s, background .2s;
+    }
+    #nav button:hover { color: var(--text); background: var(--border); }
+    #slide-counter {
+      font-size: .75rem; color: var(--text-muted);
+      font-variant-numeric: tabular-nums; min-width: 48px; text-align: center;
+    }
+    .dot-nav {
+      display: flex; gap: .4rem; align-items: center;
+    }
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-dim);
+      transition: background .3s, transform .3s;
+      cursor: pointer;
+    }
+    .dot.active { background: var(--primary); transform: scale(1.4); }
+
+    /* ── SLIDE KEYS ── */
+    #keys {
+      position: fixed; top: 1.5rem; right: 1.5rem;
+      font-size: .7rem; color: var(--text-dim);
+      z-index: 50;
+    }
+    kbd {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 4px; padding: .1rem .4rem;
+      font-family: var(--font);
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: .4;
+    }
+
+    /* ══════════════════════════════════
+       SLIDE STYLES
+    ══════════════════════════════════ */
+
+    /* ── ORBS / BG EFFECTS ── */
+    .orb {
+      position: absolute; border-radius: 50%; filter: blur(90px);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── COMMON ELEMENTS ── */
+    .slide-tag {
+      font-size: .7rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--primary); font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .slide-tag.red { color: var(--accent); }
+    .slide-tag.green { color: var(--accent2); }
+    .slide-tag.yellow { color: var(--accent3); }
+
+    h1.hero {
+      font-family: var(--serif); font-size: clamp(2.8rem, 5vw, 4.8rem);
+      line-height: 1.1; text-align: center; position: relative; z-index: 1;
+    }
+    h1.hero em { font-style: italic; color: var(--primary); }
+    h1.hero .stroke {
+      -webkit-text-stroke: 1px rgba(255,255,255,.25);
+      color: transparent;
+    }
+
+    h2.slide-title {
+      font-family: var(--serif); font-size: clamp(2rem, 3.5vw, 3.2rem);
+      line-height: 1.15; position: relative; z-index: 1;
+    }
+    h2.slide-title em { color: var(--accent); font-style: italic; }
+
+    .subtitle {
+      font-size: clamp(.95rem, 1.5vw, 1.15rem); color: var(--text-muted);
+      max-width: 680px; text-align: center; line-height: 1.7;
+      position: relative; z-index: 1; margin-top: 1.2rem;
+    }
+
+    p.body-text {
+      font-size: clamp(.95rem, 1.4vw, 1.1rem); color: var(--text-muted);
+      line-height: 1.8; max-width: 720px; position: relative; z-index: 1;
+    }
+
+    /* ── STAT CARDS ── */
+    .stats-grid {
+      display: grid; gap: 1.2rem; position: relative; z-index: 1;
+      width: 100%; max-width: 960px;
+    }
+    .stats-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .stats-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .stats-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.6rem 1.4rem;
+      position: relative; overflow: hidden;
+      transition: transform .25s, border-color .25s;
+    }
+    .stat-card:hover { transform: translateY(-3px); border-color: rgba(108,99,255,.35); }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: var(--gradient, linear-gradient(90deg, var(--primary), var(--accent)));
+    }
+    .stat-card.red::before { background: linear-gradient(90deg, var(--accent), #ff9a44); }
+    .stat-card.green::before { background: linear-gradient(90deg, var(--accent2), #00e5c8); }
+    .stat-card.yellow::before { background: linear-gradient(90deg, var(--accent3), #f4845f); }
+    .stat-card.purple::before { background: linear-gradient(90deg, var(--primary), #b06ef3); }
+
+    .stat-number {
+      font-size: clamp(1.8rem, 3vw, 2.6rem); font-weight: 900;
+      line-height: 1; margin-bottom: .35rem;
+      background: linear-gradient(135deg, #fff 60%, var(--text-muted));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-number.red { background: linear-gradient(135deg, var(--accent), #ff9a44); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-number.green { background: linear-gradient(135deg, var(--accent2), #00e5c8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-number.yellow { background: linear-gradient(135deg, var(--accent3), #f4845f); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-number.purple { background: linear-gradient(135deg, var(--primary), #b06ef3); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    .stat-label { font-size: .82rem; color: var(--text-muted); line-height: 1.45; }
+    .stat-source { font-size: .68rem; color: var(--text-dim); margin-top: .5rem; }
+
+    /* ── QUOTE ── */
+    .quote-block {
+      border-left: 3px solid var(--primary);
+      padding: 1.2rem 2rem; max-width: 720px;
+      position: relative; z-index: 1;
+    }
+    .quote-block p {
+      font-family: var(--serif); font-size: clamp(1.3rem, 2.2vw, 1.9rem);
+      font-style: italic; line-height: 1.5; color: var(--text);
+    }
+    .quote-block span { font-size: .8rem; color: var(--text-muted); display: block; margin-top: .8rem; }
+
+    /* ── PERSONA CARD ── */
+    .persona {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2rem 2.4rem; max-width: 560px;
+      position: relative; z-index: 1; overflow: hidden;
+    }
+    .persona::after {
+      content: ''; position: absolute; bottom: -40px; right: -40px;
+      width: 140px; height: 140px; border-radius: 50%;
+      background: radial-gradient(circle, var(--primary-glow), transparent 70%);
+    }
+    .persona-name { font-size: 1.35rem; font-weight: 800; margin-bottom: .25rem; }
+    .persona-age { font-size: .82rem; color: var(--accent); font-weight: 600; margin-bottom: 1rem; }
+    .persona-text { font-size: .95rem; color: var(--text-muted); line-height: 1.75; }
+    .persona-emoji { font-size: 3rem; margin-bottom: .8rem; display: block; }
+
+    /* ── JOURNEY ── */
+    .journey {
+      display: flex; flex-direction: column; gap: 0;
+      position: relative; z-index: 1; max-width: 640px; width: 100%;
+    }
+    .journey-step {
+      display: flex; gap: 1.4rem; align-items: flex-start;
+      padding-bottom: 1.8rem; position: relative;
+    }
+    .journey-step:not(:last-child)::before {
+      content: ''; position: absolute; left: 20px; top: 42px;
+      width: 1px; bottom: 0;
+      background: linear-gradient(to bottom, var(--border), transparent);
+    }
+    .step-icon {
+      width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 800;
+      background: var(--card); border: 1px solid var(--border);
+    }
+    .step-icon.bad { background: rgba(255,101,132,.15); border-color: var(--accent); color: var(--accent); }
+    .step-icon.good { background: rgba(67,212,160,.15); border-color: var(--accent2); color: var(--accent2); }
+    .step-body h4 { font-size: .95rem; font-weight: 700; margin-bottom: .2rem; }
+    .step-body p { font-size: .85rem; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── FEATURE CARDS ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1.4rem; max-width: 960px; width: 100%;
+      position: relative; z-index: 1;
+    }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; padding: 1.8rem;
+      transition: transform .25s, border-color .25s;
+      position: relative; overflow: hidden;
+    }
+    .feature-card:hover { transform: translateY(-4px); border-color: rgba(108,99,255,.4); }
+    .feature-icon {
+      width: 50px; height: 50px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; margin-bottom: 1rem;
+    }
+    .feature-icon.purple { background: rgba(108,99,255,.2); }
+    .feature-icon.red { background: rgba(255,101,132,.2); }
+    .feature-icon.green { background: rgba(67,212,160,.2); }
+    .feature-title { font-size: 1rem; font-weight: 700; margin-bottom: .5rem; }
+    .feature-desc { font-size: .84rem; color: var(--text-muted); line-height: 1.65; }
+    .feature-badge {
+      display: inline-block; margin-top: .8rem; font-size: .68rem;
+      padding: .25rem .7rem; border-radius: 100px; font-weight: 600;
+    }
+    .feature-badge.purple { background: rgba(108,99,255,.2); color: var(--primary); }
+    .feature-badge.red { background: rgba(255,101,132,.2); color: var(--accent); }
+    .feature-badge.green { background: rgba(67,212,160,.2); color: var(--accent2); }
+
+    /* ── COMPARISON ── */
+    .compare {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1.5rem; max-width: 880px; width: 100%;
+      position: relative; z-index: 1;
+    }
+    .compare-col {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.6rem;
+    }
+    .compare-col.bad { border-color: rgba(255,101,132,.25); }
+    .compare-col.good { border-color: rgba(67,212,160,.25); }
+    .compare-col h3 { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; }
+    .compare-col.bad h3 { color: var(--accent); }
+    .compare-col.good h3 { color: var(--accent2); }
+    .compare-item {
+      display: flex; gap: .7rem; align-items: flex-start;
+      margin-bottom: .7rem; font-size: .87rem; color: var(--text-muted); line-height: 1.5;
+    }
+    .compare-item .ico { flex-shrink: 0; margin-top: 1px; }
+
+    /* ── IMPACT ROW ── */
+    .impact-row {
+      display: flex; gap: 1.2rem; flex-wrap: wrap;
+      max-width: 960px; width: 100%;
+      position: relative; z-index: 1; justify-content: center;
+    }
+    .impact-pill {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 100px; padding: .6rem 1.2rem;
+      font-size: .85rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: .5rem;
+      transition: border-color .2s;
+    }
+    .impact-pill:hover { border-color: var(--primary); }
+    .impact-pill .dot-pill { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── BAR CHART ── */
+    .bar-chart {
+      display: flex; flex-direction: column; gap: .8rem;
+      max-width: 640px; width: 100%; position: relative; z-index: 1;
+    }
+    .bar-row { display: flex; align-items: center; gap: .8rem; }
+    .bar-label { font-size: .8rem; color: var(--text-muted); width: 160px; text-align: right; flex-shrink: 0; }
+    .bar-track {
+      flex: 1; height: 28px; background: var(--card);
+      border-radius: 100px; overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%; border-radius: 100px;
+      display: flex; align-items: center; justify-content: flex-end;
+      padding-right: .7rem; font-size: .75rem; font-weight: 700;
+      transition: width 1.2s cubic-bezier(.4,0,.2,1);
+    }
+    .bar-fill.purple { background: linear-gradient(90deg, var(--primary), #b06ef3); }
+    .bar-fill.red { background: linear-gradient(90deg, var(--accent), #ff9a44); }
+    .bar-fill.green { background: linear-gradient(90deg, var(--accent2), #00e5c8); }
+    .bar-fill.yellow { background: linear-gradient(90deg, var(--accent3), #f4845f); }
+
+    /* ── CTA ── */
+    .cta-btn {
+      display: inline-flex; align-items: center; gap: .7rem;
+      background: linear-gradient(135deg, var(--primary), #8b5cf6);
+      color: #fff; font-weight: 700; font-size: 1rem;
+      padding: .95rem 2.2rem; border-radius: 100px;
+      text-decoration: none; border: none; cursor: pointer;
+      box-shadow: 0 0 40px var(--primary-glow);
+      transition: transform .2s, box-shadow .2s;
+      position: relative; z-index: 1;
+    }
+    .cta-btn:hover { transform: scale(1.04); box-shadow: 0 0 60px var(--primary-glow); }
+
+    /* ── DIVIDER ── */
+    .divider { width: 60px; height: 3px; background: linear-gradient(90deg, var(--primary), var(--accent)); border-radius: 2px; margin: 1.2rem 0; }
+    .divider.center { margin: 1.2rem auto; }
+
+    /* ── SLIDE 1: COVER ── */
+    #slide-1 { text-align: center; gap: 1rem; }
+    #slide-1 .orb-1 { width: 700px; height: 700px; top: -200px; left: -250px; background: radial-gradient(circle, rgba(108,99,255,.18), transparent 70%); }
+    #slide-1 .orb-2 { width: 500px; height: 500px; bottom: -150px; right: -150px; background: radial-gradient(circle, rgba(255,101,132,.12), transparent 70%); }
+    #slide-1 .eyebrow {
+      display: inline-flex; align-items: center; gap: .6rem;
+      background: rgba(108,99,255,.12); border: 1px solid rgba(108,99,255,.3);
+      border-radius: 100px; padding: .35rem 1rem; font-size: .75rem;
+      font-weight: 600; color: var(--primary); margin-bottom: 1rem;
+    }
+    #slide-1 .eyebrow span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+
+    /* ── SLIDE 2: HISTORIA ── */
+    #slide-2 { gap: 1.8rem; }
+    #slide-2 .orb-1 { width: 400px; height: 400px; top: -100px; right: -100px; background: radial-gradient(circle, rgba(67,212,160,.12), transparent 70%); }
+
+    /* ── SLIDE 3: PROBLEMA ── */
+    #slide-3 { gap: 1.5rem; }
+    #slide-3 .orb-1 { width: 500px; height: 500px; bottom: -200px; left: -150px; background: radial-gradient(circle, rgba(255,101,132,.15), transparent 70%); }
+
+    /* ── SLIDE 4: PERSONAGEM ── */
+    #slide-4 { flex-direction: row; gap: 4rem; }
+    #slide-4 .orb-1 { width: 600px; height: 600px; top: -200px; right: -200px; background: radial-gradient(circle, rgba(108,99,255,.12), transparent 70%); }
+
+    /* ── SLIDE 5: BARREIRAS ── */
+    #slide-5 { gap: 1.6rem; }
+    #slide-5 .orb-1 { width: 500px; height: 500px; top: -200px; right: -200px; background: radial-gradient(circle, rgba(255,101,132,.12), transparent 70%); }
+
+    /* ── SLIDE 6: SOLUCAO ── */
+    #slide-6 { gap: 1.6rem; }
+    #slide-6 .orb-1 { width: 600px; height: 600px; bottom: -250px; left: -200px; background: radial-gradient(circle, rgba(108,99,255,.15), transparent 70%); }
+
+    /* ── SLIDE 7: FEATURES ── */
+    #slide-7 { gap: 1.8rem; }
+
+    /* ── SLIDE 8: DADOS EFETIVIDADE ── */
+    #slide-8 { gap: 1.8rem; flex-direction: row; align-items: center; }
+    #slide-8 .orb-1 { width: 500px; height: 500px; top: -150px; left: -150px; background: radial-gradient(circle, rgba(67,212,160,.12), transparent 70%); }
+
+    /* ── SLIDE 9: DESIGUALDADE ── */
+    #slide-9 { gap: 1.6rem; }
+    #slide-9 .orb-1 { width: 600px; height: 600px; bottom: -200px; right: -150px; background: radial-gradient(circle, rgba(255,101,132,.12), transparent 70%); }
+
+    /* ── SLIDE 10: CUSTO ── */
+    #slide-10 { gap: 1.6rem; }
+
+    /* ── SLIDE 11: ANTES/DEPOIS ── */
+    #slide-11 { gap: 1.8rem; }
+
+    /* ── SLIDE 12: IMPACTO ── */
+    #slide-12 { gap: 1.8rem; }
+    #slide-12 .orb-1 { width: 600px; height: 600px; top: -250px; left: -200px; background: radial-gradient(circle, rgba(108,99,255,.18), transparent 70%); }
+    #slide-12 .orb-2 { width: 400px; height: 400px; bottom: -150px; right: -100px; background: radial-gradient(circle, rgba(67,212,160,.1), transparent 70%); }
+
+    /* ── SLIDE 13: CTA ── */
+    #slide-13 { text-align: center; gap: 1.4rem; }
+    #slide-13 .orb-1 { width: 800px; height: 800px; top: 50%; left: 50%; transform: translate(-50%,-50%); background: radial-gradient(circle, rgba(108,99,255,.12), transparent 65%); }
+
+    /* ── ANIMATIONS ── */
+    .animate-in {
+      opacity: 0; transform: translateY(20px);
+      animation: fadeUp .6s cubic-bezier(.4,0,.2,1) forwards;
+    }
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .delay-1 { animation-delay: .1s; }
+    .delay-2 { animation-delay: .2s; }
+    .delay-3 { animation-delay: .3s; }
+    .delay-4 { animation-delay: .4s; }
+    .delay-5 { animation-delay: .5s; }
+    .delay-6 { animation-delay: .6s; }
+    .delay-7 { animation-delay: .7s; }
+
+    /* ── COUNTER ── */
+    .counter { transition: all .5s; }
+
+    /* ── TAG LINE SPECIAL ── */
+    .tag-line {
+      font-size: clamp(.95rem, 1.5vw, 1.2rem);
+      color: var(--text-muted); max-width: 580px; line-height: 1.7; text-align: center;
+    }
+
+    /* ── HIGHLIGHT ── */
+    .hl { color: var(--primary); font-weight: 700; }
+    .hl-red { color: var(--accent); font-weight: 700; }
+    .hl-green { color: var(--accent2); font-weight: 700; }
+    .hl-yellow { color: var(--accent3); font-weight: 700; }
+
+    /* ── NUMBER BIG ── */
+    .number-big {
+      font-size: clamp(4rem, 8vw, 7rem); font-weight: 900; line-height: 1;
+      background: linear-gradient(135deg, #fff 40%, var(--text-muted));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    /* ── SLIDE 9: RAÇA/GENERO bars ── */
+    .race-bar {
+      max-width: 700px; width: 100%;
+      position: relative; z-index: 1;
+    }
+    .race-item { margin-bottom: 1.2rem; }
+    .race-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: .35rem; }
+    .race-name { font-size: .85rem; color: var(--text-muted); }
+    .race-pct { font-size: .85rem; font-weight: 700; }
+    .race-track { height: 10px; background: var(--card); border-radius: 100px; overflow: hidden; border: 1px solid var(--border); }
+    .race-fill { height: 100%; border-radius: 100px; transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+
+    /* ── QUOTE LARGE ── */
+    .quote-large {
+      font-family: var(--serif); font-size: clamp(1.5rem, 3vw, 2.4rem);
+      font-style: italic; line-height: 1.4; text-align: center;
+      max-width: 780px; position: relative; z-index: 1;
+    }
+    .quote-large em { color: var(--primary); font-style: normal; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .slide { padding: 2rem 2rem; }
+      .stats-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+      .stats-grid.cols-4 { grid-template-columns: 1fr 1fr; }
+      .features-grid { grid-template-columns: 1fr; }
+      #slide-4 { flex-direction: column; gap: 2rem; }
+      #slide-8 { flex-direction: column; }
+      .compare { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<div id="keys"><kbd>←</kbd> <kbd>→</kbd> navegar</div>
+
+<div id="deck">
+
+  <!-- ══ SLIDE 1: COVER ══ -->
+  <div class="slide active" id="slide-1">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="eyebrow animate-in delay-1"><span></span> Empregabilidade & IA Social</div>
+    <h1 class="hero animate-in delay-2">
+      Da Periferia ao<br/>
+      <em>Mercado de Trabalho</em>
+    </h1>
+    <p class="tag-line animate-in delay-3">
+      Como a inteligência artificial pode democratizar o acesso ao primeiro emprego formal para <strong>8,2 milhões</strong> de jovens brasileiros
+    </p>
+    </div>
+
+  <!-- ══ SLIDE 2: A HISTÓRIA QUE ORIGINOU ══ -->
+  <div class="slide" id="slide-2">
+    <div class="orb orb-1"></div>
+    <div class="slide-tag green animate-in">A Origem</div>
+    <h2 class="slide-title animate-in delay-1">Uma experiência<br/><em>que não devia ser rara</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="quote-block animate-in delay-3">
+      <p>"Eu usei IA para treinar para o teste técnico. Quando fui fazer a prova, estavam lá as mesmas lógicas de questões que eu jamais saberia que iam ser cobradas."</p>
+      <span>— O co-fundador, sobre o momento que tudo começou</span>
+    </div>
+    <p class="body-text animate-in delay-4" style="margin-top:.8rem;">
+      Aquele momento de vantagem — treinar, se preparar, se apresentar bem — deveria estar ao alcance de <em style="color:var(--accent2);">todos os jovens</em>, não apenas de quem já tem orientação, networking e recursos.
+      <br/><br/>
+      Essa insight virou uma plataforma. Uma ferramenta de equidade.
+    </p>
+  </div>
+
+  <!-- ══ SLIDE 3: MAGNITUDE DO PROBLEMA ══ -->
+  <div class="slide" id="slide-3">
+    <div class="orb orb-1"></div>
+    <div class="slide-tag red animate-in">O Problema</div>
+    <h2 class="slide-title animate-in delay-1">8,2 milhões de jovens<br/><em>sem saída visível</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="stats-grid cols-4 animate-in delay-3">
+      <div class="stat-card red">
+        <div class="stat-number red counter" data-target="11.4" data-suffix="%">0%</div>
+        <div class="stat-label">Taxa de desemprego jovens 18–24 anos em 2025</div>
+        <div class="stat-source">IBGE/PNAD Contínua 2025</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-number yellow">2×</div>
+        <div class="stat-label">Vezes maior que a taxa de desemprego geral (5–6%)</div>
+        <div class="stat-source">IBGE 2025</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number counter" data-target="8.2" data-suffix="M">0</div>
+        <div class="stat-label">Jovens nem-nem: não estudam, não trabalham, não se qualificam</div>
+        <div class="stat-source">IBGE 2025</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-number green counter" data-target="38.5" data-suffix="%">0%</div>
+        <div class="stat-label">dos jovens trabalhadores estão na informalidade, sem direitos</div>
+        <div class="stat-source">IBGE/DIEESE 2024–25</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 4: PERSONAGEM ══ -->
+  <div class="slide" id="slide-4">
+    <div class="orb orb-1"></div>
+    <div style="flex:1; position:relative; z-index:1; display:flex; flex-direction:column; justify-content:center; max-width:400px;">
+      <div class="slide-tag animate-in">Quem é esse jovem?</div>
+      <h2 class="slide-title animate-in delay-1">Conheça<br/><em>a Beatriz</em></h2>
+      <div class="divider animate-in delay-2"></div>
+      <p class="body-text animate-in delay-3">
+        Ela existe em milhões de cópias pelo Brasil. Ela tem história, tem esforço, tem vontade. O que ela não tem é alguém que traduza isso em linguagem que o mercado entende.
+      </p>
+    </div>
+    <div class="persona animate-in delay-2">
+      <span class="persona-emoji">👩🏾</span>
+      <div class="persona-name">Beatriz, 19 anos</div>
+      <div class="persona-age">Periferia de São Paulo · Ensino Médio concluído</div>
+      <div class="persona-text">
+        Cuidou dos irmãos menores enquanto a mãe trabalhava. Vendeu salgado na escola pra ajudar em casa. Fez um cursinho de informática no SENAC. Tem Instagram, sabe usar Canva, já organizou uma festa junina da comunidade.
+        <br/><br/>
+        <strong style="color:var(--text);">No currículo dela: uma folha em branco.</strong>
+        <br/><br/>
+        No processo seletivo: eliminada antes de abrir a boca.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 5: AS 3 BARREIRAS ══ -->
+  <div class="slide" id="slide-5">
+    <div class="orb orb-1"></div>
+    <div class="slide-tag red animate-in">As Barreiras</div>
+    <h2 class="slide-title animate-in delay-1">Três muros entre o jovem<br/><em>e a vaga</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1.2rem; max-width:900px; width:100%; position:relative; z-index:1;" class="animate-in delay-3">
+      <div class="stat-card red" style="text-align:left;">
+        <div style="font-size:1.8rem; margin-bottom:.7rem;">📄</div>
+        <h3 style="font-size:1rem; font-weight:800; margin-bottom:.5rem; color:var(--accent);">Muro 1 — O Currículo Invisível</h3>
+        <p class="stat-label">Jovens de baixa renda não sabem traduzir suas experiências informais em linguagem profissional. O currículo fica vazio — não por falta de história, mas por falta de vocabulário corporativo.</p>
+        <div class="stat-source" style="margin-top:.8rem;">Currículo adaptado → +61 a +115% de entrevistas (ResumeGo, 2024)</div>
+      </div>
+      <div class="stat-card yellow" style="text-align:left;">
+        <div style="font-size:1.8rem; margin-bottom:.7rem;">🎤</div>
+        <h3 style="font-size:1rem; font-weight:800; margin-bottom:.5rem; color:var(--accent3);">Muro 2 — A Entrevista como Ritual</h3>
+        <p class="stat-label">A entrevista pressupõe um código cultural que o jovem periférico nunca aprendeu. Medo do preconceito, falta de traquejo em perguntas comportamentais, ansiedade em dinâmicas de grupo.</p>
+        <div class="stat-source" style="margin-top:.8rem;">Prática com IA → +30% em performance de entrevista (ResearchGate, 2024)</div>
+      </div>
+      <div class="stat-card" style="text-align:left;">
+        <div style="font-size:1.8rem; margin-bottom:.7rem;">💻</div>
+        <h3 style="font-size:1rem; font-weight:800; margin-bottom:.5rem; color:var(--primary);">Muro 3 — O Teste Técnico Surpresa</h3>
+        <p class="stat-label">Atendimento, Excel, raciocínio lógico, vendas — provas que parecem simples, mas que jovens nunca praticaram. Eliminados por falta de preparação, não por falta de capacidade.</p>
+        <div class="stat-source" style="margin-top:.8rem;">O insight dos fundadores: preparação estruturada muda o resultado</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 6: A SOLUÇÃO ══ -->
+  <div class="slide" id="slide-6">
+    <div class="orb orb-1"></div>
+    <div class="slide-tag animate-in">A Solução</div>
+    <h2 class="slide-title animate-in delay-1">Três módulos.<br/><em>Três muros derrubados.</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="features-grid animate-in delay-3">
+      <div class="feature-card">
+        <div class="feature-icon purple">📋</div>
+        <div class="feature-title">Gerador de Portfólio com IA</div>
+        <div class="feature-desc">O jovem conta o que viveu — bicos, ajuda à família, projetos acadêmicos. A IA traduz em competências reais e monta um currículo completo com modelo da plataforma, sem cara de IA e sem inventar informações.</div>
+        <span class="feature-badge purple">Anti-paradoxo da experiência</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon red">🧠</div>
+        <div class="feature-title">Simulador de Entrevista Pessoal</div>
+        <div class="feature-desc">Com base no currículo gerado, a IA faz perguntas comportamentais personalizadas baseadas na HISTÓRIA daquele jovem. Avalia a resposta e dá dicas práticas. Treino de RH com feedback real.</div>
+        <span class="feature-badge red">Personalizado para cada um</span>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon green">⚡</div>
+        <div class="feature-title">Treino de Entrevista Técnica</div>
+        <div class="feature-desc">Se a vaga pedir habilidades específicas — atendimento, Excel, lógica, administração ou vendas — o sistema gera um teste prático com feedback, correção e preparação para provas similares.</div>
+        <span class="feature-badge green">O diferencial que nasceu a ideia</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 7: EFETIVIDADE COM DADOS ══ -->
+  <div class="slide" id="slide-7">
+    <div class="orb" style="width:500px;height:500px;top:-150px;right:-150px;background:radial-gradient(circle,rgba(67,212,160,.12),transparent 70%);"></div>
+    <div class="slide-tag green animate-in">Evidências</div>
+    <h2 class="slide-title animate-in delay-1">Isso não é promessa.<br/><em>São dados.</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="stats-grid cols-3 animate-in delay-3" style="max-width:900px;">
+      <div class="stat-card green">
+        <div class="stat-number green">+30%</div>
+        <div class="stat-label">de melhora em performance de entrevista com prática consistente em simuladores de IA — articulação, fluência, estrutura</div>
+        <div class="stat-source">ResearchGate · Estudos NLP aplicado, 2023–24</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-number purple">+12%</div>
+        <div class="stat-label">na taxa de ofertas de emprego para candidatos avaliados por IA vs. seleção humana tradicional</div>
+        <div class="stat-source">U. Chicago Booth + Erasmus University · 70.000+ candidatos, 2024</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-number yellow">54%</div>
+        <div class="stat-label">aprovados na fase final quando passaram por entrevista IA antes — vs. 34% em processos tradicionais</div>
+        <div class="stat-source">Stanford / micro1 · Pipeline de Recrutamento, 2024</div>
+      </div>
+    </div>
+    <div class="stats-grid cols-2 animate-in delay-4" style="max-width:900px; margin-top:1rem;">
+      <div class="stat-card">
+        <div class="stat-number">+115%</div>
+        <div class="stat-label">mais entrevistas geradas por currículos adaptados à vaga vs. currículos genéricos</div>
+        <div class="stat-source">ResumeGo / ResumeFast · Field study, 2024</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-number red">3×</div>
+        <div class="stat-label">mais chances de callback com currículo otimizado (11,7% vs. 4,2% sem otimização)</div>
+        <div class="stat-source">Scale.jobs · ATS Benchmark, 2024</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 8: DESIGUALDADE RACIAL/GÊNERO ══ -->
+  <div class="slide" id="slide-8">
+    <div class="orb orb-1"></div>
+    <div style="flex:1; max-width:420px; position:relative; z-index:1;">
+      <div class="slide-tag red animate-in">Quem mais sofre</div>
+      <h2 class="slide-title animate-in delay-1">O desemprego<br/><em>não é neutro</em></h2>
+      <div class="divider animate-in delay-2"></div>
+      <p class="body-text animate-in delay-3">
+        Raça, gênero e CEP são filtros invisíveis que eliminam o jovem antes mesmo de qualquer análise de mérito. A plataforma democratiza o acesso às ferramentas que só alguns têm.
+      </p>
+    </div>
+    <div style="flex:1; position:relative; z-index:1;" class="animate-in delay-2">
+      <p style="font-size:.78rem; color:var(--text-dim); margin-bottom:1.2rem; text-transform:uppercase; letter-spacing:.1em;">Taxa nem-nem — Jovens 15–29 anos (IBGE 2025)</p>
+      <div class="race-bar">
+        <div class="race-item">
+          <div class="race-header"><span class="race-name">👩🏾 Mulheres negras e pardas</span><span class="race-pct" style="color:var(--accent);">22,8%</span></div>
+          <div class="race-track"><div class="race-fill bar-anim" data-width="91" style="width:0%;background:linear-gradient(90deg,var(--accent),#ff9a44);"></div></div>
+        </div>
+        <div class="race-item">
+          <div class="race-header"><span class="race-name">🧑🏾 Jovens pretos e pardos</span><span class="race-pct" style="color:var(--accent3);">19,8%</span></div>
+          <div class="race-track"><div class="race-fill bar-anim" data-width="79" style="width:0%;background:linear-gradient(90deg,var(--accent3),#f4845f);"></div></div>
+        </div>
+        <div class="race-item">
+          <div class="race-header"><span class="race-name">👨 Jovens brancos</span><span class="race-pct" style="color:var(--text-muted);">14,0%</span></div>
+          <div class="race-track"><div class="race-fill bar-anim" data-width="56" style="width:0%;background:linear-gradient(90deg,#555,#888);"></div></div>
+        </div>
+        <div class="race-item">
+          <div class="race-header"><span class="race-name">👨 Homens jovens</span><span class="race-pct" style="color:var(--text-muted);">12,4%</span></div>
+          <div class="race-track"><div class="race-fill bar-anim" data-width="49" style="width:0%;background:linear-gradient(90deg,#444,#777);"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:1.5rem;">
+        <div class="stat-card red" style="text-align:left;">
+          <div class="stat-number red">60%</div>
+          <div class="stat-label">A renda média da população negra equivale a apenas 60% da renda da população não-negra — mesmo com escolaridade similar</div>
+          <div class="stat-source">IBGE/DIEESE 2024</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 9: CUSTO DO PROBLEMA ══ -->
+  <div class="slide" id="slide-9">
+    <div class="orb" style="width:600px;height:600px;bottom:-200px;left:-150px;background:radial-gradient(circle,rgba(249,199,79,.08),transparent 70%);"></div>
+    <div class="slide-tag yellow animate-in">O Custo Invisível</div>
+    <h2 class="slide-title animate-in delay-1">Cada jovem parado<br/><em>é um custo que todos pagam</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="stats-grid cols-3 animate-in delay-3" style="max-width:920px;">
+      <div class="stat-card yellow">
+        <div style="font-size:1.5rem; margin-bottom:.5rem;">📉</div>
+        <h3 style="font-size:.95rem; font-weight:700; color:var(--accent3); margin-bottom:.5rem;">Para a Economia</h3>
+        <p class="stat-label">Dezenas de bilhões de reais em PIB potencial não realizado anualmente. Jovens são os principais vetores de adoção tecnológica nas empresas.</p>
+        <div class="stat-source">Estimativas CNC / FGV IBRE</div>
+      </div>
+      <div class="stat-card red">
+        <div style="font-size:1.5rem; margin-bottom:.5rem;">🏛️</div>
+        <h3 style="font-size:.95rem; font-weight:700; color:var(--accent); margin-bottom:.5rem;">Para o Estado</h3>
+        <p class="stat-label">Sem contribuição previdenciária, sem arrecadação fiscal, mais gastos assistenciais. Com envelhecimento populacional acelerado, isso é uma bomba fiscal.</p>
+        <div class="stat-source">FGV / Scielo, estudos previdência 2024</div>
+      </div>
+      <div class="stat-card">
+        <div style="font-size:1.5rem; margin-bottom:.5rem;">🧠</div>
+        <h3 style="font-size:.95rem; font-weight:700; color:var(--primary); margin-bottom:.5rem;">Para o Jovem</h3>
+        <p class="stat-label"><strong style="color:var(--text);">Scarring effect:</strong> quem entra tarde no mercado ganha menos a vida toda. Desalento causa ansiedade, depressão e vulnerabilidade à violência.</p>
+        <div class="stat-source">OIT / FGV, 2024</div>
+      </div>
+    </div>
+    <div class="quote-block animate-in delay-4" style="max-width:680px; margin-top:.5rem;">
+      <p>"A ociosidade forçada está estruturalmente associada à vulnerabilidade à violência em contextos de periferia."</p>
+      <span>— Análise socioeconômica, FGV IBRE, 2024</span>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 10: GLOBAL ══ -->
+  <div class="slide" id="slide-10">
+    <div class="orb" style="width:600px;height:600px;top:-200px;right:-200px;background:radial-gradient(circle,rgba(108,99,255,.12),transparent 70%);"></div>
+    <div class="slide-tag animate-in">Contexto Global</div>
+    <h2 class="slide-title animate-in delay-1">O Brasil não está sozinho.<br/><em>Mas pode liderar.</em></h2>
+    <div class="divider animate-in delay-2"></div>
+    <div class="stats-grid cols-4 animate-in delay-3">
+      <div class="stat-card purple">
+        <div class="stat-number purple counter" data-target="262" data-suffix="M">0</div>
+        <div class="stat-label">jovens NEET no mundo em 2025 — nem estudo, nem trabalho, nem qualificação</div>
+        <div class="stat-source">OIT, 2025</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">1 em 5</div>
+        <div class="stat-label">jovens no mundo é NEET. 2 de cada 3 deles são mulheres.</div>
+        <div class="stat-source">ONU / OIT, 2024</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-number red">13%</div>
+        <div class="stat-label">taxa global de desemprego juvenil — mesmo na mínima histórica em 15 anos</div>
+        <div class="stat-source">OIT · GET for Youth, 2024</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-number yellow">40%</div>
+        <div class="stat-label">das competências dos trabalhadores serão impactadas pela IA e automação em breve</div>
+        <div class="stat-source">WEF · Future of Jobs, 2024</div>
+      </div>
+    </div>
+    <p class="body-text animate-in delay-4" style="text-align:center; margin-top:.5rem;">
+      Enquanto a IA ameaça eliminar empregos, esta plataforma usa IA para <span class="hl">criar oportunidades</span>. É tecnologia a favor de quem mais precisa.
+    </p>
+  </div>
+
+  <!-- ══ SLIDE 11: ANTES E DEPOIS ══ -->
+  <div class="slide" id="slide-11">
+    <div class="slide-tag animate-in">A Transformação</div>
+    <h2 class="slide-title animate-in delay-1" style="text-align:center;">A mesma Beatriz.<br/><em>Resultados completamente diferentes.</em></h2>
+    <div class="divider center animate-in delay-2"></div>
+    <div class="compare animate-in delay-3">
+      <div class="compare-col bad">
+        <h3>❌ Sem a plataforma</h3>
+        <div class="compare-item"><span class="ico">😔</span> Histórico de bicos e cuidados familiares → Currículo vazio</div>
+        <div class="compare-item"><span class="ico">😰</span> Nunca treinou uma entrevista → Trava na hora de responder</div>
+        <div class="compare-item"><span class="ico">❓</span> Não sabe o que a prova técnica vai cobrar → Surpresa fatal</div>
+        <div class="compare-item"><span class="ico">🚫</span> Descartada antes mesmo de ser vista</div>
+        <div class="compare-item"><span class="ico">🔄</span> Ciclo de desalento se repete</div>
+      </div>
+      <div class="compare-col good">
+        <h3>✅ Com a plataforma</h3>
+        <div class="compare-item"><span class="ico">📋</span> IA extrai competências reais → Currículo profissional e honesto</div>
+        <div class="compare-item"><span class="ico">🎤</span> Simula entrevistas baseadas na SUA história → Chega confiante</div>
+        <div class="compare-item"><span class="ico">💪</span> Treina o tipo de teste específico da vaga → Sem surpresas</div>
+        <div class="compare-item"><span class="ico">🎯</span> Chega preparada. Tem chance real de ser contratada.</div>
+        <div class="compare-item"><span class="ico">🚀</span> Primeiro emprego → Carteira assinada → Trajetória de ascensão</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 12: IMPACTO ESPERADO ══ -->
+  <div class="slide" id="slide-12">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="slide-tag green animate-in">Impacto</div>
+    <h2 class="slide-title animate-in delay-1" style="text-align:center;">O que mudamos<br/><em>quando um jovem é contratado</em></h2>
+    <div class="divider center animate-in delay-2"></div>
+    <div class="impact-row animate-in delay-3">
+      <div class="impact-pill"><div class="dot-pill" style="background:var(--primary);"></div> Reduz desigualdade de acesso</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:var(--accent2);"></div> Combate racismo estrutural</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:var(--accent3);"></div> Aumenta arrecadação fiscal</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:var(--accent);"></div> Reduz gastos assistenciais</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:#b06ef3;"></div> Melhora saúde mental</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:#00e5c8;"></div> Alimenta Previdência Social</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:#f4845f;"></div> Quebra ciclo de pobreza intergeracional</div>
+      <div class="impact-pill"><div class="dot-pill" style="background:var(--primary);"></div> Reduz vulnerabilidade à violência</div>
+    </div>
+    <div class="stats-grid cols-3 animate-in delay-4" style="max-width:800px; margin-top:1rem;">
+      <div class="stat-card green">
+        <div class="stat-number green">+98K</div>
+        <div class="stat-label">vagas de Jovem Aprendiz criadas jan–nov/2024 (+11,9%)</div>
+        <div class="stat-source">MTE/Caged 2024</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-number purple">47M+</div>
+        <div class="stat-label">jovens brasileiros de 15–29 anos — mercado endereçável da plataforma</div>
+        <div class="stat-source">IBGE 2024</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-number yellow">Equidade</div>
+        <div class="stat-label">Jovens negros e periféricos acessando o mesmo nível de preparação que jovens de classe média</div>
+        <div class="stat-source">Proposta de valor central</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 13: CONCLUSÃO / CTA ══ -->
+  <div class="slide" id="slide-13">
+    <div class="orb orb-1"></div>
+    <div class="slide-tag animate-in">Conclusão</div>
+    <p class="quote-large animate-in delay-1">
+      "Não falta <em>vontade</em> nesse jovem.<br/>Falta alguém que o ensine a<br/><em>contar a própria história.</em>"
+    </p>
+    <div class="divider center animate-in delay-2"></div>
+    <p class="subtitle animate-in delay-3">
+      O problema é real. Os dados são robustos. A tecnologia existe.<br/>
+      O que falta é colocar isso nas mãos de quem precisa.
+    </p>
+    <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:1rem;" class="animate-in delay-4">
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:.7rem 1.4rem; font-size:.82rem; color:var(--text-muted);">
+        🇧🇷 8,2M jovens nem-nem
+      </div>
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:.7rem 1.4rem; font-size:.82rem; color:var(--text-muted);">
+        🌍 262M NEET no mundo
+      </div>
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:.7rem 1.4rem; font-size:.82rem; color:var(--text-muted);">
+        📈 +30% performance com IA
+      </div>
+      <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; padding:.7rem 1.4rem; font-size:.82rem; color:var(--text-muted);">
+        ⚡ Tecnologia a favor da equidade
+      </div>
+    </div>
+    <p style="font-size:.78rem; color:var(--text-dim); position:relative; z-index:1; margin-top:2rem;" class="animate-in delay-5">
+      Fontes: IBGE · DIEESE · MTE/Caged · OIT · WEF · FGV · University of Chicago · Erasmus University · ResearchGate
+    </p>
+  </div>
+
+</div><!-- end deck -->
+
+<!-- ── NAVIGATION ── -->
+<div id="nav">
+  <button id="prev-btn" onclick="changeSlide(-1)" title="Anterior">←</button>
+  <div class="dot-nav" id="dots"></div>
+  <div id="slide-counter">1 / 13</div>
+  <button id="next-btn" onclick="changeSlide(1)" title="Próximo">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+  let animating = false;
+
+  // Build dots
+  const dotsContainer = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsContainer.appendChild(d);
+  });
+
+  function updateUI() {
+    document.getElementById('slide-counter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('progress-bar').style.width = `${((current + 1) / total) * 100}%`;
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  function goTo(index) {
+    if (animating || index === current || index < 0 || index >= total) return;
+    animating = true;
+
+    const oldSlide = slides[current];
+    const newSlide = slides[index];
+
+    oldSlide.classList.add('exit');
+    setTimeout(() => {
+      oldSlide.classList.remove('active', 'exit');
+      newSlide.classList.add('active');
+      current = index;
+      updateUI();
+      triggerAnimations(newSlide);
+      triggerBars(newSlide);
+      triggerCounters(newSlide);
+      animating = false;
+    }, 450);
+  }
+
+  function changeSlide(dir) { goTo(current + dir); }
+
+  function triggerAnimations(slide) {
+    slide.querySelectorAll('.animate-in').forEach(el => {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    });
+  }
+
+  function triggerBars(slide) {
+    slide.querySelectorAll('.bar-anim').forEach(bar => {
+      const w = bar.dataset.width;
+      setTimeout(() => { bar.style.width = w + '%'; }, 200);
+    });
+  }
+
+  function triggerCounters(slide) {
+    slide.querySelectorAll('.counter').forEach(el => {
+      const target = parseFloat(el.dataset.target);
+      const suffix = el.dataset.suffix || '';
+      const duration = 1400;
+      const start = performance.now();
+      function step(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const val = target * ease;
+        el.textContent = (Number.isInteger(target) ? Math.round(val) : val.toFixed(1)) + suffix;
+        if (progress < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); changeSlide(-1); }
+  });
+
+  // Touch swipe
+  let touchX = 0;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = touchX - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 50) changeSlide(dx > 0 ? 1 : -1);
+  });
+
+  // Init
+  updateUI();
+  triggerCounters(slides[0]);
+</script>
+</body>
+</html>
